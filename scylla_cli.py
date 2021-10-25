@@ -133,18 +133,19 @@ class ScyllaApiCommand:
             self.options.insert(option.name, option)
 
         def generate_parser(self):
-            parser = ArgumentParser(description=f"{self.command_name} {self.kind_to_str[self.kind]} API syntax.", add_help=False)
+            parser = ArgumentParser(description=f"{self.command_name} {self.kind_to_str[self.kind]} - {self.desc}", add_help=False)
             for opt in self.options.items():
                 opt.add_argument(parser)
             self.parser = parser
 
         def get_help(self):
-            s = f"{self.kind_to_str[self.kind]} {self.command_name}"
+            help_str = f"{self.kind_to_str[self.kind]} - {self.desc}\n\n"
+            usage = f"usage: {self.command_name} {self.kind_to_str[self.kind]}"
             required_help = ''
             optional_help = ''
 
             def opt_help(name:str, param:str='', help:str='', justify=21):
-                pfx = f"  {name} {param}"
+                pfx = f"  {name}, {param}"
                 s = pfx.ljust(justify)
                 if len(pfx) >= justify:
                     s += f"\n{''.ljust(justify)}"
@@ -153,21 +154,22 @@ class ScyllaApiCommand:
 
             for opt in self.options.items():
                 if opt.required:
-                    s += f" --{opt.name} {opt.name.upper()}"
+                    usage += f" --{opt.name} {opt.name.upper()}"
                     oh = opt_help(f"--{opt.name}", param=opt.name.upper(), help=opt.help)
                     required_help += f"\n{oh}"
             for opt in self.options.items():
                 if not opt.required:
-                    s += f" [--{opt.name} {opt.name.upper()}]"
+                    usage += f" [--{opt.name} {opt.name.upper()}]"
                     oh = opt_help(f"--{opt.name}", param=opt.name.upper(), help=opt.help)
                     optional_help += f"\n{oh}"
 
+            help_str += usage
             if required_help:
-                s += f"\n\nRequired arguments:{required_help}"
+                help_str += f"\n\nRequired arguments:{required_help}"
             if optional_help:
-                s += f"\n\nOptional arguments:{optional_help}"
+                help_str += f"\n\nOptional arguments:{optional_help}"
             
-            return s
+            return help_str
 
         def invoke(self, node_address:str, port:int, path_format:str, args:dict):
             path_dict = dict()
@@ -237,7 +239,7 @@ class ScyllaApiCommand:
                 log.warn(f"Operation not supported yet: {json.dumps(operation_def, indent=4)}")
                 continue
 
-            method = ScyllaApiCommand.Method(kind=kind, desc=operation_def["summary"], command_name=self.name)
+            method = ScyllaApiCommand.Method(kind=kind, desc=operation_def["summary"], command_name=f"{self.module_name}/{self.name}")
             for param_def in operation_def["parameters"]:
                 method.add_option(ScyllaApiOption(param_def["name"],
                     required=param_def.get("required", False),
@@ -260,8 +262,6 @@ class ScyllaApiCommand:
 
         log.debug(f"Invoking {self.name} {self.Method.kind_to_str[method_kind] if method_kind is not None else 'None'} {argv}")
         print_help = '-h' in argv or '--help' in argv
-        if print_help:
-            print(f"{self.name} API syntax:\n")
         kind_strings = []
         for kind, m in self.methods.items():
             kind_str = self.Method.kind_to_str[kind]
